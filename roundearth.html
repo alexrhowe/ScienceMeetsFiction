@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Curvature of the Earth (beta)</title>
+    <script>
+        
+        // state: 0=uninitialised, 1=running, 2=stopping, 3=stopped
+        var animation_state = 0;
+        var start = Date.now();
+        function draw() {
+            var altitude = document.getElementById("altitude").value;
+            var units = document.getElementById("units").value;
+            if (units=="kilometers") altitude *= 1000.;
+            else if (units=="meters") altitude *= 1.;
+            else if (units=="feet") altitude *= 0.3048;
+            else if (units=="miles") altitude *= (0.3048*5280);
+        
+            var rround = 6371000.;
+			var rflat = rround * Math.PI;
+            var h = altitude;            
+
+            var horizonr = Math.sqrt((rround+h)**2 - rround**2);  // 3-D distance to horizon on round Earth
+            var thetar = Math.acos(rround/(rround+h));          // Angle between observer and horizon on round Earth
+            var overlandr = thetar*rround;                      // Overland distance to horizon on round Earth
+            var d = horizonr*rround/(rround+h);
+            var alpha = (document.getElementById('fov').value)/2*Math.PI/180;                         // field of view
+            var Ls = horizonr*Math.cos(alpha);
+            var w = horizonr*Math.sin(alpha)*2.;                  // width of horizon in image
+            var ds = Math.sqrt(d**2 - (w/2.)**2);
+            var y = d - ds;
+            var x = y*Math.sin(thetar);
+            var curver = x/w;
+            
+            //document.getElementById("curver").innerHTML = w/d;
+            
+            if(w >= 2*d) {
+                document.getElementById("curver").innerHTML = "Whole Earth";
+                //print('Entire (round) Earth in field of view.')
+                //sys.exit()
+            }
+            else {
+                document.getElementById("curver").innerHTML = (curver*100).toFixed(5);
+            }
+            //document.getElementById("demo").innerHTML = rulerf;
+			
+            var canvas_size = 800;
+            var canvas_centre = [400,150];
+            var outer_radius = canvas_size/2 - 100;
+			
+            // Draw background.
+            var background = document.getElementById('background');
+            if (!background.getContext) {
+                alert('Your browser does not support 2d canvas elements, try another browser.');
+                return;
+            }
+            var background_ctx = background.getContext('2d');
+			
+            function draw_background() {
+                var ctx = background_ctx;
+                ctx.clearRect(0, 0, 800,1400);
+                
+				var steps = 1000;
+				var aspect = 0.04
+                
+				// Earth
+				ctx.strokeStyle = 'black';
+				ctx.beginPath();
+				ctx.arc(canvas_centre[0], canvas_centre[1]+953, 1000, 0, 2*Math.PI);
+				ctx.stroke();				
+                /*
+                var x1 = canvas_centre[0] + Math.cos(alpha)*outer_radius;
+                var x2 = canvas_centre[0] + Math.cos(alpha*2)*outer_radius;
+                var x3 = canvas_centre[0] + Math.cos(alpha*3)*outer_radius;
+                var y1 = canvas_centre[1] + Math.sin(alpha)*aspect*outer_radius;
+                var y2 = canvas_centre[1] + Math.sin(alpha*2)*aspect*outer_radius;
+                var y3 = canvas_centre[1] + Math.sin(alpha*3)*aspect*outer_radius;
+                */
+                var x1 = canvas_centre[0] + Math.cos(Math.PI/3-alpha)*outer_radius;
+                var x2 = canvas_centre[0] + Math.cos(Math.PI/3)*outer_radius;
+                var x3 = canvas_centre[0] + Math.cos(Math.PI/3+alpha)*outer_radius;
+                var y1 = canvas_centre[1] + Math.sin(Math.PI/3-alpha)*aspect*outer_radius;
+                var y2 = canvas_centre[1] + Math.sin(Math.PI/3)*aspect*outer_radius;
+                var y3 = canvas_centre[1] + Math.sin(Math.PI/3+alpha)*aspect*outer_radius;
+                
+                // Straightedge
+                ctx.lineWidth = 3.0;
+                ctx.setLineDash([4, 3]);
+				ctx.strokeStyle = 'red';
+				ctx.beginPath();
+				ctx.moveTo(x1,y1);
+                ctx.lineTo(x3,y3);
+                ctx.stroke();
+                
+                ctx.lineWidth = 1.0;
+                ctx.setLineDash([6, 4]);
+                ctx.strokeStyle = 'black';
+				ctx.beginPath();
+                ctx.moveTo(canvas_centre[0], canvas_centre[1] - outer_radius*0.4);
+                ctx.lineTo((x1+x3)/2.,(y1+y3)/2.);
+                ctx.stroke();
+                
+				ctx.beginPath();
+				ctx.moveTo(canvas_centre[0], canvas_centre[1] - 47);
+                ctx.lineTo(canvas_centre[0], canvas_centre[1]);
+                ctx.lineTo((x1+x3)/2.,(y1+y3)/2.);
+                //ctx.lineTo(x2,y2);
+                ctx.stroke();
+                
+                ctx.setLineDash([]);
+                
+				// Draw horizon circle (tilted)
+				ctx.strokeStyle = 'green';
+				ctx.beginPath();
+				ctx.moveTo(
+                    canvas_centre[0] + outer_radius,
+                    canvas_centre[1]
+                );
+				for (var j=0; j<steps; j++) {
+					var angle = 2.*Math.PI*j/steps;
+					ctx.lineTo(
+						canvas_centre[0] + Math.cos(angle) * outer_radius,
+						canvas_centre[1] - Math.sin(angle) * aspect * outer_radius
+					);
+				}
+				ctx.stroke();
+                
+                ctx.font = "16px Arial";
+                ctx.fillStyle = 'black';
+                ctx.fillText("Earth (not to scale)", 30, 100);
+                ctx.fillStyle = 'green';
+                ctx.fillText("Horizon Circle", 130, 190);
+                ctx.fillStyle = 'blue';
+                ctx.fillText("Photo Border", (x1+x3)/2-100, 280);
+                ctx.fillStyle = 'black';
+				
+                // Sight rays
+				ctx.strokeStyle = 'black';
+				ctx.beginPath();
+				ctx.moveTo(canvas_centre[0], canvas_centre[1] - outer_radius*0.4);
+                ctx.lineTo(x1,y1);
+				ctx.moveTo(canvas_centre[0], canvas_centre[1] - outer_radius*0.4);
+                ctx.lineTo(x2,y2);
+				ctx.moveTo(canvas_centre[0], canvas_centre[1] - outer_radius*0.4);
+                ctx.lineTo(x3,y3);
+				ctx.moveTo(canvas_centre[0], canvas_centre[1] - outer_radius*0.4);
+				ctx.lineTo(canvas_centre[0], canvas_centre[1] - 47);
+                ctx.stroke();
+                
+                // Photo border
+				ctx.strokeStyle = 'blue';
+				ctx.beginPath();
+                ctx.lineTo(x1 + 20, y1-100);
+                ctx.lineTo(x1 - 20, y1+100);
+                ctx.lineTo(x3 - 20, y3+100);
+                ctx.lineTo(x3 + 20, y3-100);
+                ctx.lineTo(x1 + 20, y1-100);  // was 100*Math.cos(2*alpha)
+                ctx.stroke();
+                
+				ctx.fillStyle = 'red';
+				ctx.beginPath();
+				ctx.arc(canvas_centre[0], canvas_centre[1]-outer_radius*0.4, 5, 0, 2*Math.PI);
+				ctx.fill();
+            }
+            draw_background();
+            
+            canvas_centre = [400,850];
+            outer_radius = 390
+            var halfchord = outer_radius*0.6;
+            var impact = outer_radius*0.8;
+            var beta = Math.atan(0.75);
+            var impact2 = outer_radius*(1.25-0.8);
+            var shortchord = halfchord*Math.cos(alpha);
+            var gamma = Math.atan2(shortchord,impact2);
+            
+            function draw_side() {
+                var ctx = background_ctx;
+                // Earth
+				ctx.strokeStyle = 'black';
+				ctx.beginPath();
+				ctx.arc(canvas_centre[0], canvas_centre[1], outer_radius, -Math.PI, 0);
+				ctx.stroke();
+				ctx.beginPath();
+				ctx.arc(canvas_centre[0], canvas_centre[1], 30, -Math.PI/2, -Math.PI/2+beta);
+				ctx.stroke();
+				ctx.beginPath();
+				ctx.arc(canvas_centre[0]-halfchord, canvas_centre[1]-impact, 30, -beta, 0);
+				ctx.stroke();
+                
+                ctx.font = "16px Arial";
+                ctx.fillStyle = 'black';
+                ctx.fillText("Side View", 30, 400);
+                ctx.font = "italic bold 16px Arial";
+                ctx.fillText("r",canvas_centre[0]+halfchord/2+15, canvas_centre[1]-impact/2.);
+                ctx.fillText("h",canvas_centre[0]-15, canvas_centre[1]-outer_radius*1.1);
+                ctx.fillText("L",canvas_centre[0]-halfchord/2-15, canvas_centre[1]-outer_radius-15);
+                //ctx.fillText("L'",canvas_centre[0]+halfchord*Math.cos(alpha)/2-40, canvas_centre[1]-outer_radius-15);
+                ctx.fillText("d",canvas_centre[0]-halfchord/2+15, canvas_centre[1]-impact+20);
+                ctx.fillText("p",canvas_centre[0]+halfchord*Math.cos(alpha)/3+15, canvas_centre[1]-impact+20);
+                ctx.fillText("x",canvas_centre[0]+halfchord*(Math.cos(alpha)+(1-Math.cos(alpha))*0.5)-15, canvas_centre[1]-impact+20);
+                ctx.fillText("y",canvas_centre[0]+halfchord*(Math.cos(alpha)+(1-Math.cos(alpha))*0.25)-15, canvas_centre[1]-impact+24-Math.cos(gamma)*50);
+                
+                ctx.fillText("\u03B8",canvas_centre[0]+10, canvas_centre[1]-40);
+                ctx.fillText("\u03B8",canvas_centre[0]-halfchord+40, canvas_centre[1]-impact-10);
+                
+                // Horizon circle
+				ctx.strokeStyle = 'green';
+				ctx.beginPath();
+				ctx.moveTo(canvas_centre[0]+halfchord, canvas_centre[1]-impact);
+				ctx.lineTo(canvas_centre[0], canvas_centre[1]-impact);
+				ctx.stroke();
+                                
+				ctx.beginPath();
+				ctx.moveTo(canvas_centre[0]-halfchord, canvas_centre[1]-impact);
+				ctx.lineTo(canvas_centre[0], canvas_centre[1]-impact);
+				ctx.stroke();
+                
+                ctx.setLineDash([]);
+                
+                // Base triangle
+				ctx.strokeStyle = 'black';
+				ctx.beginPath();
+				ctx.moveTo(canvas_centre[0], canvas_centre[1]);
+				ctx.lineTo(canvas_centre[0], canvas_centre[1]-outer_radius*1.25);
+				ctx.lineTo(canvas_centre[0]+halfchord, canvas_centre[1]-impact);
+				ctx.lineTo(canvas_centre[0], canvas_centre[1]);
+				ctx.stroke();
+                
+				ctx.strokeStyle = 'gray';
+				ctx.moveTo(canvas_centre[0]+halfchord-12, canvas_centre[1]-impact-9);
+				ctx.lineTo(canvas_centre[0]+halfchord-21, canvas_centre[1]-impact+3);
+				ctx.lineTo(canvas_centre[0]+halfchord-9, canvas_centre[1]-impact+12);
+				ctx.stroke();
+                
+                // Photo border
+				ctx.strokeStyle = 'blue';
+				ctx.beginPath();
+                ctx.moveTo(
+                    canvas_centre[0]+halfchord*Math.cos(alpha)-100*Math.cos(gamma), 
+                    canvas_centre[1]-impact+100*Math.sin(gamma)
+                );
+                ctx.lineTo(
+                    canvas_centre[0]+halfchord*Math.cos(alpha)+100*Math.cos(gamma), 
+                    canvas_centre[1]-impact-100*Math.sin(gamma)
+                );
+				ctx.stroke();
+                
+                // Dashed sight lines
+                ctx.lineWidth = 1.0;
+                ctx.setLineDash([6, 4]);
+				ctx.strokeStyle = 'black';
+				ctx.beginPath();
+                ctx.lineTo(
+                    canvas_centre[0]-halfchord, 
+                    canvas_centre[1]-impact
+                );
+                ctx.lineTo(
+                    canvas_centre[0], 
+                    canvas_centre[1]-outer_radius*1.25
+                );
+                ctx.lineTo(
+                    canvas_centre[0]+halfchord*Math.cos(alpha), 
+                    canvas_centre[1]-impact
+                );
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                // Draw points
+                var point_list = [
+                    [canvas_centre[0], canvas_centre[1]],
+                    [canvas_centre[0]+halfchord, canvas_centre[1]-impact],
+                    [canvas_centre[0]-halfchord, canvas_centre[1]-impact],
+                    [canvas_centre[0], canvas_centre[1]-impact],
+                    [canvas_centre[0], canvas_centre[1]-outer_radius],
+                    [canvas_centre[0]+halfchord*Math.cos(alpha), canvas_centre[1]-impact]                    
+                ];
+                
+				ctx.fillStyle = 'red';
+				ctx.beginPath();
+				ctx.arc(canvas_centre[0], canvas_centre[1]-outer_radius*1.25, 5, 0, 2*Math.PI);
+				ctx.fill();
+                
+				ctx.fillStyle = 'black';
+                var npoints = point_list.length;
+                for (var k=0; k<npoints; k++) {
+                    ctx.beginPath();
+                    ctx.arc(point_list[k][0], point_list[k][1], 4, 0, 2*Math.PI);
+                    ctx.fill();
+                }
+            }
+            draw_side();
+            
+            canvas_centre = [350,1150];
+            outer_radius = 180
+            
+            function draw_top() {
+                var ctx = background_ctx;
+                
+                ctx.font = "16px Arial";
+                ctx.fillStyle = 'black';
+                ctx.fillText("Top View", 380, 960);
+                ctx.font = "italic bold 16px Arial";
+                ctx.fillText("w",canvas_centre[0]+210+outer_radius*Math.cos(alpha)-20, canvas_centre[1]-50*Math.sin(alpha));
+                
+				ctx.beginPath();
+				ctx.arc(canvas_centre[0]+210, canvas_centre[1], 30, -alpha, 0);
+				ctx.stroke();
+                ctx.fillText("\u03B1",canvas_centre[0]+210+35, canvas_centre[1]-15*alpha);
+                
+				ctx.strokeStyle = 'green';
+				ctx.beginPath();
+				ctx.arc(canvas_centre[0]+210, canvas_centre[1], outer_radius, 0, 2*Math.PI);
+				ctx.stroke();
+                
+				ctx.strokeStyle = 'black';
+				ctx.beginPath();
+				ctx.moveTo(canvas_centre[0]+210, canvas_centre[1]);
+				ctx.lineTo(canvas_centre[0]+210+outer_radius, canvas_centre[1]);
+				ctx.moveTo(canvas_centre[0]+210, canvas_centre[1]);
+				ctx.lineTo(
+                    canvas_centre[0]+210+outer_radius*Math.cos(alpha), 
+                    canvas_centre[1]-outer_radius*Math.sin(alpha)
+                );
+				ctx.moveTo(canvas_centre[0]+210, canvas_centre[1]);
+				ctx.lineTo(
+                    canvas_centre[0]+210+outer_radius*Math.cos(alpha), 
+                    canvas_centre[1]+outer_radius*Math.sin(alpha)
+                );
+				ctx.stroke();
+                
+				ctx.strokeStyle = 'blue';
+				ctx.beginPath();
+				ctx.moveTo(
+                    canvas_centre[0]+210+outer_radius*Math.cos(alpha)-50*Math.sin(beta), 
+                    canvas_centre[1]+outer_radius*Math.sin(alpha)
+                );
+				ctx.lineTo(
+                    canvas_centre[0]+210+outer_radius*Math.cos(alpha)+50*Math.sin(beta), 
+                    canvas_centre[1]+outer_radius*Math.sin(alpha)
+                );
+				ctx.lineTo(
+                    canvas_centre[0]+210+outer_radius*Math.cos(alpha)+50*Math.sin(beta), 
+                    canvas_centre[1]-outer_radius*Math.sin(alpha)
+                );
+				ctx.lineTo(
+                    canvas_centre[0]+210+outer_radius*Math.cos(alpha)-50*Math.sin(beta), 
+                    canvas_centre[1]-outer_radius*Math.sin(alpha)
+                );
+				ctx.lineTo(
+                    canvas_centre[0]+210+outer_radius*Math.cos(alpha)-50*Math.sin(beta), 
+                    canvas_centre[1]+outer_radius*Math.sin(alpha)
+                );
+                
+				ctx.stroke();
+                
+                // Straightedge
+                ctx.lineWidth = 3.0;
+                ctx.setLineDash([4, 3]);
+				ctx.strokeStyle = 'red';
+				ctx.beginPath();
+				ctx.moveTo(
+                    canvas_centre[0]+210+outer_radius*Math.cos(alpha), 
+                    canvas_centre[1]+outer_radius*Math.sin(alpha)
+                );
+				ctx.lineTo(
+                    canvas_centre[0]+210+outer_radius*Math.cos(alpha), 
+                    canvas_centre[1]-outer_radius*Math.sin(alpha)
+                );
+                ctx.stroke();
+                ctx.lineWidth = 1.0;
+                ctx.setLineDash([]);
+				ctx.strokeStyle = 'black';
+                
+                var point_list = [
+                    [canvas_centre[0]+210+outer_radius*Math.cos(alpha), canvas_centre[1]+outer_radius*Math.sin(alpha)],
+                    [canvas_centre[0]+210+outer_radius*Math.cos(alpha), canvas_centre[1]-outer_radius*Math.sin(alpha)]
+                ];
+                
+				ctx.fillStyle = 'red';
+				ctx.beginPath();
+				ctx.arc(canvas_centre[0]+210, canvas_centre[1], 5, 0, 2*Math.PI);
+				ctx.fill();
+                
+				ctx.fillStyle = 'black';
+                var npoints = point_list.length;
+                for (var k=0; k<npoints; k++) {
+                    ctx.beginPath();
+                    ctx.arc(point_list[k][0], point_list[k][1], 4, 0, 2*Math.PI);
+                    ctx.fill();
+                }
+            }
+            draw_top();
+
+            function draw_photo() {
+                var ctx = background_ctx;
+                
+                ctx.font = "16px Arial";
+                ctx.fillStyle = 'black';
+                ctx.fillText("Photo", 30, 960);
+                
+				ctx.strokeStyle = 'blue';
+				ctx.beginPath();
+                ctx.lineTo(10,1000);
+                ctx.lineTo(340,1000);
+                ctx.lineTo(340,1300);
+                ctx.lineTo(340,1300);
+                ctx.lineTo(10,1300);
+                ctx.lineTo(10,1000);
+                ctx.stroke();
+                
+				ctx.strokeStyle = 'red';
+				ctx.beginPath();
+                ctx.lineWidth = 3.0;
+                ctx.setLineDash([4, 3]);
+                ctx.lineTo(10,1150);
+                ctx.lineTo(340,1150);
+                ctx.stroke();
+                
+                ctx.setLineDash([]);
+				ctx.strokeStyle = 'black';
+				ctx.beginPath();
+                ctx.lineTo(canvas_centre[0]-175,canvas_centre[1]);
+                ctx.lineTo(canvas_centre[0]-175,canvas_centre[1]-13);
+				ctx.stroke();
+                
+				ctx.strokeStyle = 'green';
+                ctx.lineWidth = 1.0;
+				ctx.beginPath();
+				ctx.arc(canvas_centre[0]-175, canvas_centre[1]+987, 1000, -Math.PI/2.-0.165, -Math.PI/2.+0.165);
+				ctx.stroke();
+            }
+            draw_photo();
+            
+            var animation = document.getElementById('animation');
+            var animation_ctx = animation.getContext('2d');
+            //var rotspeed = parseInt(document.getElementById('speed').value)/500;
+            var animate = function() {
+                if (animation_state == 2) {
+                    // Stopping.
+                    animation_state = 3; // Stopped.
+                    return;
+                }
+                var now = Date.now();
+                //var progress = ((now - start)/1000*rotspeed) % loops;
+                var ctx = animation_ctx;
+
+                ctx.clearRect(0, 0, 1400, 1400);
+
+                window.requestAnimationFrame(animate);
+            };
+            animation_state = 1; // running
+            window.requestAnimationFrame(animate);
+        }
+		
+        function restart() {
+            if (animation_state == 3) {
+                // Already stopped.
+                draw();
+                return;
+            }
+            if (animation_state != 1) return;
+            animation_state = 2; // stopping
+            var draw_when_stopped = function() {
+                if (animation_state != 3) {
+                    window.requestAnimationFrame(draw_when_stopped);
+                    return;
+                }
+                draw();
+            };
+            window.requestAnimationFrame(draw_when_stopped);
+        }
+        
+        function gcd(a, b) {
+            if (b == 0) {
+                return a;
+            }
+            return gcd(b, a % b);
+        }
+        
+    </script>
+    <style>
+        #render {
+            width: 800px;
+            height: 1400px;
+            position: relative;
+            display: block;
+        }
+        #options {
+            display: block;
+        }
+        canvas {
+            border: 0px;
+            position: absolute;
+        }
+        .flex {
+            display: flex;
+        }
+        #background {
+            z-index: 1;
+            opacity: 1.0;
+        }
+        #animation {
+            z-index: 2;
+        }
+        body {
+            font-family: sans-serif;
+        }
+    </style>
+</head>
+<body onload="draw();">
+    <div class="flex">
+        <div id="options">
+            <h2>Curavture of the Earth (beta)</h2>
+            <label for="altitude">Altitude:</label>
+            <input type="number" id="altitude" value="10" onchange="restart();" />
+            <select id="units">
+                <option value="kilometers">Kilometers</option>
+                <option value="miles">Miles</option>
+                <option value="meters">Meters</option>
+                <option value="feet">Feet</option>
+            </select>
+            <br><br>
+            <label for="speed">Field of View:</label>
+            <input type="range" id="fov" value="54" min="1" max="120" onchange="restart();" oninput="this.nextElementSibling.value = this.value;" >
+                <output>54</output>&deg;</input>
+            <br>
+            <!--<label for="speed">Window Size:</label>
+            <input type="range" id="wsize" value="20" min="1" max="50" onchange="restart();" oninput="this.nextElementSibling.value = this.value;" >
+                <output>20</output> cm</input>
+            <br><br>-->
+            
+            <!--<input type="radio" id="model" name="model" value="round" checked>
+            <label for="round">Round Earth</label><br>
+            <input type="radio" id="model" name="model" value="flat">
+            <label for="flat">Flat Earth</label><br>-->
+            <br>
+            <img src="RoundEarthMath.png" alt="" style="width:200px;">
+            <br>
+            <label for="curvature">Curvature <i>c</i> = </label>
+            <output id="curver"></output>%
+            
+        </div>
+        <div id="render">
+            <canvas id="background" width="800" height="1400"></canvas>
+            <canvas id="animation" width="800" height="1400"></canvas>
+        </div>
+    </div>
+    <!--Animation by <a href="https://kieranclancy.com/">Kieran Clancy</a>.<br/>
+    Inspired by <a href="https://www.youtube.com/watch?v=oEN0o9ZGmOM">this video</a> by Mathologer (Burkard Polster).<br/>
+    This work is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>.-->
+</body>
+</html>
